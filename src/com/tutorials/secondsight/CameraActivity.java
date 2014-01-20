@@ -30,9 +30,24 @@ import android.view.MenuItem;
 import android.view.WindowManager;
 import android.widget.Toast;
 
+import com.tutorials.secondsight.filters.Filter;
+import com.tutorials.secondsight.filters.NoneFilter;
+import com.tutorials.secondsight.filters.convolution.StrokeEdgesFilter;
+import com.tutorials.secondsight.filters.curve.CrossProcessCurveFilter;
+import com.tutorials.secondsight.filters.curve.PortraCurveFilter;
+import com.tutorials.secondsight.filters.curve.ProviaCurveFilter;
+import com.tutorials.secondsight.filters.curve.VelviaCurveFilter;
+import com.tutorials.secondsight.filters.mixer.RecolorCVMFilter;
+import com.tutorials.secondsight.filters.mixer.RecolorRCFilter;
+import com.tutorials.secondsight.filters.mixer.RecolorRGVFilter;
+
 public class CameraActivity extends Activity implements CvCameraViewListener2 {
   private static final String STATE_CAMERA_INDEX = "cameraIndex";
   private static final String TAG = "CameraActivity";
+  private static final String STATE_CURVE_FILTER_INDEX = "curveFilterIndex";
+  private static final String STATE_MIXER_FILTER_INDEX = "mixerFilterIndex";
+  private static final String STATE_CONVOLUTION_FILTER_INDEX =
+    "convolutionFilterIndex";
   
   private int mCameraIndex;
   private boolean mIsCameraFrontFacing;
@@ -42,6 +57,13 @@ public class CameraActivity extends Activity implements CvCameraViewListener2 {
   private Mat mBgr;
   private boolean mIsMenuLocked;
   
+  private Filter[] mCurveFilters;
+  private Filter[] mMixerFilters;
+  private Filter[] mConvolutionFilters;
+  private int mCurveFilterIndex;
+  private int mMixerFilterIndex;
+  private int mConvolutionFilterIndex;
+  
   private BaseLoaderCallback mLoaderCallback =
     new BaseLoaderCallback(this) {
       @Override
@@ -50,6 +72,23 @@ public class CameraActivity extends Activity implements CvCameraViewListener2 {
           case LoaderCallbackInterface.SUCCESS:
             mCameraView.enableView();
             mBgr = new Mat();
+            mCurveFilters = new Filter[] {
+              new NoneFilter(),
+              new PortraCurveFilter(),
+              new ProviaCurveFilter(),
+              new VelviaCurveFilter(),
+              new CrossProcessCurveFilter()
+            };
+            mMixerFilters = new Filter[] {
+              new NoneFilter(),
+              new RecolorRCFilter(),
+              new RecolorRGVFilter(),
+              new RecolorCVMFilter()
+            };
+            mConvolutionFilters = new Filter[] {
+              new NoneFilter(),
+              new StrokeEdgesFilter()
+            };
             break;
           default:
             super.onManagerConnected(status);
@@ -65,8 +104,17 @@ public class CameraActivity extends Activity implements CvCameraViewListener2 {
     
     if(savedInstanceState != null) {
       mCameraIndex = savedInstanceState.getInt(STATE_CAMERA_INDEX, 0);
+      mCurveFilterIndex =
+          savedInstanceState.getInt(STATE_CURVE_FILTER_INDEX, 0);
+      mMixerFilterIndex =
+          savedInstanceState.getInt(STATE_MIXER_FILTER_INDEX, 0);
+      mConvolutionFilterIndex =
+          savedInstanceState.getInt(STATE_CONVOLUTION_FILTER_INDEX, 0);
     } else {
       mCameraIndex = 0;
+      mCurveFilterIndex = 0;
+      mMixerFilterIndex = 0;
+      mConvolutionFilterIndex = 0;
     }
     
     CameraInfo cameraInfo = new CameraInfo();
@@ -86,6 +134,10 @@ public class CameraActivity extends Activity implements CvCameraViewListener2 {
   public void onSaveInstanceState(Bundle savedInstanceState) {
     super.onSaveInstanceState(savedInstanceState);
     savedInstanceState.putInt(STATE_CAMERA_INDEX, mCameraIndex);
+    savedInstanceState.putInt(STATE_CURVE_FILTER_INDEX, mCurveFilterIndex);
+    savedInstanceState.putInt(STATE_MIXER_FILTER_INDEX, mMixerFilterIndex);
+    savedInstanceState.putInt(STATE_CONVOLUTION_FILTER_INDEX,
+        mConvolutionFilterIndex);
   }
   
   @Override
@@ -130,15 +182,22 @@ public class CameraActivity extends Activity implements CvCameraViewListener2 {
     switch(item.getItemId()) {
       case R.id.menu_next_camera:
         mIsMenuLocked = true;
-        mCameraIndex++;
-        if(mCameraIndex == mNumCameras) {
-          mCameraIndex = 0;
-        }
+        mCameraIndex = (mCameraIndex + 1) % mNumCameras;
         recreate();
         return true;
       case R.id.menu_take_photo:
         mIsMenuLocked = true;
         mIsPhotoPending = true;
+        return true;
+      case R.id.menu_next_curve_filter:
+        mCurveFilterIndex = (mCurveFilterIndex + 1) % mCurveFilters.length;
+        return true;
+      case R.id.menu_next_mixer_filter:
+        mMixerFilterIndex = (mMixerFilterIndex + 1) % mMixerFilters.length;
+        return true;
+      case R.id.menu_next_convolution_filter:
+        mConvolutionFilterIndex =
+          (mConvolutionFilterIndex + 1) % mConvolutionFilters.length;
         return true;
       default:
         return super.onOptionsItemSelected(item);
@@ -156,6 +215,9 @@ public class CameraActivity extends Activity implements CvCameraViewListener2 {
   @Override
   public Mat onCameraFrame(CvCameraViewFrame inputFrame) {
     final Mat rgba = inputFrame.rgba();
+    mCurveFilters[mCurveFilterIndex].apply(rgba, rgba);
+    mMixerFilters[mMixerFilterIndex].apply(rgba, rgba);
+    mConvolutionFilters[mConvolutionFilterIndex].apply(rgba, rgba);
     if(mIsPhotoPending) {
       mIsPhotoPending = false;
       takePhoto(rgba);
