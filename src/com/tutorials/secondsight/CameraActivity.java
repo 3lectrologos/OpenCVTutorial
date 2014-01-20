@@ -1,6 +1,7 @@
 package com.tutorials.secondsight;
 
 import java.io.File;
+import java.io.IOException;
 
 import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.CameraBridgeViewBase;
@@ -31,6 +32,7 @@ import android.view.WindowManager;
 import android.widget.Toast;
 
 import com.tutorials.secondsight.filters.Filter;
+import com.tutorials.secondsight.filters.ImageDetectionFilter;
 import com.tutorials.secondsight.filters.NoneFilter;
 import com.tutorials.secondsight.filters.convolution.StrokeEdgesFilter;
 import com.tutorials.secondsight.filters.curve.CrossProcessCurveFilter;
@@ -48,6 +50,8 @@ public class CameraActivity extends Activity implements CvCameraViewListener2 {
   private static final String STATE_MIXER_FILTER_INDEX = "mixerFilterIndex";
   private static final String STATE_CONVOLUTION_FILTER_INDEX =
     "convolutionFilterIndex";
+  private static final String STATE_IMAGE_DETECTION_FILTER_INDEX =
+    "imageDetectionFilterIndex";
   
   private int mCameraIndex;
   private boolean mIsCameraFrontFacing;
@@ -60,9 +64,11 @@ public class CameraActivity extends Activity implements CvCameraViewListener2 {
   private Filter[] mCurveFilters;
   private Filter[] mMixerFilters;
   private Filter[] mConvolutionFilters;
+  private Filter[] mImageDetectionFilters;
   private int mCurveFilterIndex;
   private int mMixerFilterIndex;
   private int mConvolutionFilterIndex;
+  private int mImageDetectionFilterIndex;
   
   private BaseLoaderCallback mLoaderCallback =
     new BaseLoaderCallback(this) {
@@ -89,6 +95,19 @@ public class CameraActivity extends Activity implements CvCameraViewListener2 {
               new NoneFilter(),
               new StrokeEdgesFilter()
             };
+            final Filter starryNight;
+            try {
+              starryNight =
+                  new ImageDetectionFilter(CameraActivity.this,
+                      R.drawable.dominos);
+            } catch(IOException e) {
+              Log.e(TAG, "Failed to load drawable: " + "dominos");
+              break;
+            }
+            mImageDetectionFilters = new Filter[] {
+              new NoneFilter(),
+              starryNight
+            };
             break;
           default:
             super.onManagerConnected(status);
@@ -110,11 +129,14 @@ public class CameraActivity extends Activity implements CvCameraViewListener2 {
           savedInstanceState.getInt(STATE_MIXER_FILTER_INDEX, 0);
       mConvolutionFilterIndex =
           savedInstanceState.getInt(STATE_CONVOLUTION_FILTER_INDEX, 0);
+      mImageDetectionFilterIndex =
+          savedInstanceState.getInt(STATE_IMAGE_DETECTION_FILTER_INDEX, 0);
     } else {
       mCameraIndex = 0;
       mCurveFilterIndex = 0;
       mMixerFilterIndex = 0;
       mConvolutionFilterIndex = 0;
+      mImageDetectionFilterIndex = 0;
     }
     
     CameraInfo cameraInfo = new CameraInfo();
@@ -138,6 +160,8 @@ public class CameraActivity extends Activity implements CvCameraViewListener2 {
     savedInstanceState.putInt(STATE_MIXER_FILTER_INDEX, mMixerFilterIndex);
     savedInstanceState.putInt(STATE_CONVOLUTION_FILTER_INDEX,
         mConvolutionFilterIndex);
+    savedInstanceState.putInt(STATE_IMAGE_DETECTION_FILTER_INDEX,
+        mImageDetectionFilterIndex);
   }
   
   @Override
@@ -199,6 +223,10 @@ public class CameraActivity extends Activity implements CvCameraViewListener2 {
         mConvolutionFilterIndex =
           (mConvolutionFilterIndex + 1) % mConvolutionFilters.length;
         return true;
+      case R.id.menu_next_image_detection_filter:
+        mImageDetectionFilterIndex =
+          (mImageDetectionFilterIndex + 1) % mImageDetectionFilters.length;
+        return true;
       default:
         return super.onOptionsItemSelected(item);
     }
@@ -215,9 +243,18 @@ public class CameraActivity extends Activity implements CvCameraViewListener2 {
   @Override
   public Mat onCameraFrame(CvCameraViewFrame inputFrame) {
     final Mat rgba = inputFrame.rgba();
-    mCurveFilters[mCurveFilterIndex].apply(rgba, rgba);
-    mMixerFilters[mMixerFilterIndex].apply(rgba, rgba);
-    mConvolutionFilters[mConvolutionFilterIndex].apply(rgba, rgba);
+    if(mCurveFilters != null) {
+      mCurveFilters[mCurveFilterIndex].apply(rgba, rgba);
+    }
+    if(mMixerFilters != null) {
+      mMixerFilters[mMixerFilterIndex].apply(rgba, rgba);
+    }
+    if(mConvolutionFilters != null) {
+      mConvolutionFilters[mConvolutionFilterIndex].apply(rgba, rgba);
+    }
+    if(mImageDetectionFilters != null) {
+      mImageDetectionFilters[mImageDetectionFilterIndex].apply(rgba, rgba);
+    }
     if(mIsPhotoPending) {
       mIsPhotoPending = false;
       takePhoto(rgba);

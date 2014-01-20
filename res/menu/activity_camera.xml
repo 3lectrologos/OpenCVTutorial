@@ -24,4 +24,9 @@
       android:orderInCategory="100"
       android:showAsAction="ifRoom|withText"
       android:title="@string/menu_next_convolution_filter" />
+  <item
+      android:id="@+id/menu_next_image_detection_filter"
+      android:orderInCategory="100"
+      android:showAsAction="ifRoom|withText"
+      android:title="@string/menu_next_image_detection_filter" />
 </menu>
